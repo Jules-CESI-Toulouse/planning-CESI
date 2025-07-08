@@ -12,6 +12,13 @@ st.set_page_config(
     layout="wide"
 )
 
+# Désactiver les avertissements de locale
+import locale
+try:
+    locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+except:
+    locale.setlocale(locale.LC_ALL, 'C')
+
 # Fonctions utilitaires
 def charger_donnees():
     """Charge les données depuis le fichier de sauvegarde"""
@@ -42,58 +49,59 @@ def afficher_calendrier_semaine(seances, date_debut):
     """Affiche un calendrier semaine interactif"""
     date_fin = date_debut + timedelta(days=6)
     
-    # Création du DataFrame
-    df = pd.DataFrame(seances)
-    if df.empty:
+    if not seances:
         st.warning("Aucune séance planifiée pour cette semaine")
         return
     
-    # Conversion des dates
-    df['Date'] = pd.to_datetime(df['date'])
-    df = df[(df['Date'] >= pd.to_datetime(date_debut)) & 
-            (df['Date'] <= pd.to_datetime(date_fin))]
-    
-    if df.empty:
-        st.warning("Aucune séance planifiée pour cette semaine")
-        return
-    
-    # Préparation des données pour le calendrier
-    df['Jour'] = df['Date'].apply(lambda x: get_jour_semaine(x.date()))
-    df['Début'] = df['creneau'].apply(get_heure_debut)
-    df['Fin'] = df['creneau'].apply(get_heure_fin)
-    
-    # Tri des jours de la semaine
-    jours_ordre = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
-    df['Jour'] = pd.Categorical(df['Jour'], categories=jours_ordre, ordered=True)
-    df = df.sort_values(['Jour', 'Début'])
-    
-    # Création du calendrier
-    fig = px.timeline(
-        df,
-        x_start="Début",
-        x_end="Fin",
-        y="Jour",
-        color="enseignant",
-        hover_name="matiere",
-        hover_data=["groupe", "promotion", "cout"],
-        title=f"Emploi du temps - Semaine du {date_debut.strftime('%d/%m/%Y')}",
-        color_discrete_sequence=px.colors.qualitative.Pastel
-    )
-    
-    # Personnalisation du calendrier
-    fig.update_yaxes(title='', categoryorder='array', categoryarray=jours_ordre)
-    fig.update_xaxes(
-        title='',
-        tickformat="%H:%M",
-        range=[get_heure_debut("Matin 1 (2h)"), get_heure_fin("Soir 2 (2h)")]
-    )
-    fig.update_layout(
-        height=600,
-        showlegend=True,
-        legend_title_text='Enseignants'
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+    try:
+        df = pd.DataFrame(seances)
+        df['Date'] = pd.to_datetime(df['date'])
+        df = df[(df['Date'] >= pd.to_datetime(date_debut)) & 
+                (df['Date'] <= pd.to_datetime(date_fin))]
+        
+        if df.empty:
+            st.warning("Aucune séance planifiée pour cette semaine")
+            return
+        
+        # Préparation des données pour le calendrier
+        df['Jour'] = df['Date'].apply(lambda x: get_jour_semaine(x.date()))
+        df['Début'] = df['creneau'].apply(get_heure_debut)
+        df['Fin'] = df['creneau'].apply(get_heure_fin)
+        
+        # Tri des jours de la semaine
+        jours_ordre = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+        df['Jour'] = pd.Categorical(df['Jour'], categories=jours_ordre, ordered=True)
+        df = df.sort_values(['Jour', 'Début'])
+        
+        # Création du calendrier
+        fig = px.timeline(
+            df,
+            x_start="Début",
+            x_end="Fin",
+            y="Jour",
+            color="enseignant",
+            hover_name="matiere",
+            hover_data=["groupe", "promotion", "cout"],
+            title=f"Emploi du temps - Semaine du {date_debut.strftime('%d/%m/%Y')}",
+            color_discrete_sequence=px.colors.qualitative.Pastel
+        )
+        
+        # Personnalisation du calendrier
+        fig.update_yaxes(title='', categoryorder='array', categoryarray=jours_ordre)
+        fig.update_xaxes(
+            title='',
+            tickformat="%H:%M",
+            range=[get_heure_debut("Matin 1 (2h)"), get_heure_fin("Soir 2 (2h)")]
+        )
+        fig.update_layout(
+            height=600,
+            showlegend=True,
+            legend_title_text='Enseignants'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        st.error(f"Erreur lors de l'affichage du calendrier: {str(e)}")
 
 def get_heure_debut(creneau):
     """Retourne l'heure de début en fonction du créneau"""
