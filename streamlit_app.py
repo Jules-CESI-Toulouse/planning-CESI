@@ -40,29 +40,52 @@ def sauvegarder_donnees(data):
         json.dump(data, f)
 
 def afficher_calendrier(seances, date_debut, date_fin):
-    df = pd.DataFrame(seances)
-    df['Date'] = pd.to_datetime(df['date'])
-    df = df[(df['Date'] >= date_debut) & (df['Date'] <= date_fin)]
-    
-    if not df.empty:
-        df['Début'] = df['creneau'].apply(lambda x: "08:00" if "matin" in x else "14:00")
-        df['Fin'] = df['Début'].apply(lambda x: "12:00" if x == "08:00" else "18:00")
-        
-        fig = px.timeline(
-            df, 
-            x_start="Début", 
-            x_end="Fin", 
-            y="groupe", 
-            color="enseignant",
-            title="Emploi du temps",
-            hover_name="matiere",
-            hover_data=["promotion", "session", "cout"]
-        )
-        fig.update_yaxes(title='Groupe')
-        fig.update_xaxes(title='Heure')
-        st.plotly_chart(fig, use_container_width=True)
-    else:
+    if not seances:  # Vérifier si la liste est vide
         st.warning("Aucune séance planifiée pour cette période.")
+        return
+    
+    df = pd.DataFrame(seances)
+    
+    # Vérifier si la colonne 'date' existe
+    if 'date' not in df.columns:
+        st.error("Les données des séances ne contiennent pas de date.")
+        return
+    
+    try:
+        df['Date'] = pd.to_datetime(df['date'])
+        df = df[(df['Date'] >= pd.to_datetime(date_debut)) &
+                (df['Date'] <= pd.to_datetime(date_fin))]
+        
+        if not df.empty:
+            # Créer des colonnes de début et fin pour le calendrier
+            df['Début'] = df['creneau'].apply(lambda x:
+                "08:00" if "matin" in x.lower() else "14:00")
+            df['Fin'] = df['Début'].apply(lambda x:
+                "12:00" if x == "08:00" else "18:00")
+            
+            # Vérifier les colonnes nécessaires
+            required_cols = ['Début', 'Fin', 'groupe', 'enseignant', 'matiere', 'promotion', 'session', 'cout']
+            for col in required_cols:
+                if col not in df.columns:
+                    df[col] = "Non spécifié"
+            
+            fig = px.timeline(
+                df,
+                x_start="Début",
+                x_end="Fin",
+                y="groupe",
+                color="enseignant",
+                title="Emploi du temps",
+                hover_name="matiere",
+                hover_data=["promotion", "session", "cout"]
+            )
+            fig.update_yaxes(title='Groupe')
+            fig.update_xaxes(title='Heure')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Aucune séance planifiée pour cette période.")
+    except Exception as e:
+        st.error(f"Erreur lors de la création du calendrier: {str(e)}")
 
 # Interface principale
 def main():
@@ -83,7 +106,7 @@ def main():
         aujourdhui = datetime.now().date()
         debut_semaine = aujourdhui
         fin_semaine = aujourdhui + pd.Timedelta(days=7)
-        
+
         st.subheader("Emploi du temps de la semaine")
         afficher_calendrier(data["seances"], debut_semaine, fin_semaine)
         
@@ -250,35 +273,47 @@ def main():
         )
         
         matiere = st.text_input("Matière")
-        
+            
+            # Dans l'onglet Séances, modifier l'ajout de séance comme suit :
         if st.button("Ajouter la séance"):
-            # Trouver le tarif de l'enseignant
-            tarif = next((e["tarif"] for e in data["enseignants"] if e["id"] == enseignant_id[0]), 0)
-            cout = duree * tarif
-            
-            # Trouver la promotion du groupe
-            promo_id = next((g["promo_id"] for g in data["groupes"] if g["id"] == groupe_id[0]), None)
-            session_id = next((p["session_id"] for p in data["promotions"] if p["id"] == promo_id), None)
-            
-            data["seances"].append({
-                "id": len(data["seances"]) + 1,
-                "date": str(date_seance),
-                "creneau": creneau,
-                "duree": duree,
-                "groupe": groupe_id[1],
-                "groupe_id": groupe_id[0],
-                "promotion": promos_dict.get(promo_id, ""),
-                "promo_id": promo_id,
-                "session": sessions_dict.get(session_id, ""),
-                "session_id": session_id,
-                "enseignant": next((e[1] for e in [(e["id"], f"{e['prenom']} {e['nom']}") for e in data["enseignants"]] if e[0] == enseignant_id[0]), ""),
-                "enseignant_id": enseignant_id[0],
-                "matiere": matiere,
-                "tarif": tarif,
-                "cout": cout
-            })
-            sauvegarder_donnees(data)
-            st.success("Séance ajoutée avec succès!")
+            try:
+                # Formatage de la date en string ISO pour un meilleur traitement
+                date_str = date_seance.isoformat()
+                
+                # Trouver le tarif de l'enseignant
+                tarif = next((float(e["tarif"]) for e in data["enseignants"] if e["id"] == enseignant_id[0]), 0)
+                cout = duree * tarif
+                
+                # Trouver la promotion du groupe
+                promo_id = next((g["promo_id"] for g in data["groupes"] if g["id"] == groupe_id[0]), None)
+                session_id = next((p["session_id"] for p in data["promotions"] if p["id"] == promo_id), None)
+                
+                # Création de la séance avec tous les champs requis
+                nouvelle_seance = {
+                    "id": len(data["seances"]) + 1,
+                    "date": date_str,
+                    "creneau": creneau,
+                    "duree": duree,
+                    "groupe": groupe_id[1],
+                    "groupe_id": groupe_id[0],
+                    "promotion": promos_dict.get(promo_id, ""),
+                    "promo_id": promo_id,
+                    "session": sessions_dict.get(session_id, ""),
+                    "session_id": session_id,
+                    "enseignant": next((f"{e['prenom']} {e['nom']}" for e in data["enseignants"] if e["id"] == enseignant_id[0]), ""),
+                    "enseignant_id": enseignant_id[0],
+                    "matiere": matiere,
+                    "tarif": tarif,
+                    "cout": cout
+                }
+                
+                data["seances"].append(nouvelle_seance)
+                sauvegarder_donnees(data)
+                st.success("Séance ajoutée avec succès!")
+                st.experimental_rerun()  # Recharger la page pour actualiser les données
+                
+            except Exception as e:
+                st.error(f"Erreur lors de l'ajout de la séance: {str(e)}")
         
         st.subheader("Séances planifiées")
         if data["seances"]:
