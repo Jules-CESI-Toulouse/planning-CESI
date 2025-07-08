@@ -91,7 +91,11 @@ def main():
         col1, col2, col3 = st.columns(3)
         col1.metric("Nombre d'enseignants", len(data["enseignants"]))
         col2.metric("Nombre de séances", len(data["seances"]))
-        col3.metric("Budget total", f"{sum(float(s['cout']) for s in data['seances']} €")
+        if data["seances"]:
+            total = sum(float(s['cout']) for s in data['seances'])
+            col3.metric("Budget total", f"{total:.2f} €")
+        else:
+            col3.metric("Budget total", "0.00 €")
     
     # Onglet Enseignants
     elif onglet == "Enseignants":
