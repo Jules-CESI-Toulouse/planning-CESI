@@ -57,9 +57,15 @@ def get_heure_fin(creneau):
     else:
         return datetime.strptime("16:30", "%H:%M") if "1" in creneau else datetime.strptime("18:30", "%H:%M")
 
-def afficher_calendrier_semaine(seances, date_debut):
+def afficher_calendrier_semaine(seances, date_debut, session_id=None, groupe_id=None):
     """Affiche un calendrier semaine interactif"""
     date_fin = date_debut + timedelta(days=6)
+
+    # Filtrer les séances par session et groupe si spécifiés
+    if session_id:
+        seances = [s for s in seances if s["promo_id"] in [p["id"] for p in data["promotions"] if p["session_id"] == session_id]]
+    if groupe_id:
+        seances = [s for s in seances if s["groupe_id"] == groupe_id]
 
     # Création du DataFrame
     df = pd.DataFrame(seances)
@@ -300,8 +306,26 @@ def main():
             key="date_calendrier"
         )
 
+        # Sélection de la session
+        session_options = [(s["id"], s["nom"]) for s in data["sessions"]]
+        session_id = st.selectbox(
+            "Session",
+            options=[None] + session_options,
+            format_func=lambda x: x[1] if x else "Toutes les sessions",
+            index=0
+        )
+
+        # Sélection du groupe
+        groupe_options = [(g["id"], g["nom"]) for g in data["groupes"]]
+        groupe_id = st.selectbox(
+            "Groupe",
+            options=[None] + groupe_options,
+            format_func=lambda x: x[1] if x else "Tous les groupes",
+            index=0
+        )
+
         # Affichage du calendrier
-        afficher_calendrier_semaine(data["seances"], debut_semaine)
+        afficher_calendrier_semaine(data["seances"], debut_semaine, session_id[0] if session_id else None, groupe_id[0] if groupe_id else None)
 
         # Bouton pour ajouter une séance depuis le calendrier
         if st.button("Ajouter une séance", key="ajout_calendrier"):
