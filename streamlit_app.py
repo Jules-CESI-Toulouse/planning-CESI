@@ -1,9 +1,10 @@
 import streamlit as st
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 import pandas as pd
 import json
 import os
 import plotly.express as px
+from urllib.request import urlopen
 
 # Configuration de la page
 st.set_page_config(
@@ -11,6 +12,10 @@ st.set_page_config(
     page_icon="📚",
     layout="wide"
 )
+
+# Fonction pour charger le logo
+def load_logo(url):
+    return urlopen(url).read()
 
 # Fonctions utilitaires
 def charger_donnees():
@@ -41,16 +46,16 @@ def get_jour_semaine(date_obj):
 def get_heure_debut(creneau):
     """Retourne l'heure de début en fonction du créneau"""
     if "matin" in creneau.lower():
-        return datetime.strptime("08:00", "%H:%M") if "1" in creneau or "4h" in creneau else datetime.strptime("10:00", "%H:%M")
+        return datetime.strptime("08:30", "%H:%M") if "1" in creneau or "4h" in creneau else datetime.strptime("10:30", "%H:%M")
     else:
-        return datetime.strptime("14:00", "%H:%M") if "1" in creneau or "4h" in creneau else datetime.strptime("16:00", "%H:%M")
+        return datetime.strptime("14:30", "%H:%M") if "1" in creneau or "4h" in creneau else datetime.strptime("16:30", "%H:%M")
 
 def get_heure_fin(creneau):
     """Retourne l'heure de fin en fonction du créneau"""
     if "matin" in creneau.lower():
-        return datetime.strptime("10:00", "%H:%M") if "1" in creneau else datetime.strptime("12:00", "%H:%M")
+        return datetime.strptime("10:30", "%H:%M") if "1" in creneau else datetime.strptime("12:30", "%H:%M")
     else:
-        return datetime.strptime("16:00", "%H:%M") if "1" in creneau else datetime.strptime("18:00", "%H:%M")
+        return datetime.strptime("16:30", "%H:%M") if "1" in creneau else datetime.strptime("18:30", "%H:%M")
 
 def afficher_calendrier_semaine(seances, date_debut):
     """Affiche un calendrier semaine interactif"""
@@ -90,7 +95,8 @@ def afficher_calendrier_semaine(seances, date_debut):
         hover_name="matiere",
         hover_data=["groupe", "promotion", "cout"],
         title=f"Emploi du temps - Semaine du {date_debut.strftime('%d/%m/%Y')}",
-        color_discrete_sequence=px.colors.qualitative.Pastel
+        color_discrete_sequence=px.colors.qualitative.Pastel,
+        text="matiere"
     )
 
     # Personnalisation du calendrier
@@ -98,13 +104,14 @@ def afficher_calendrier_semaine(seances, date_debut):
     fig.update_xaxes(
         title='',
         tickformat="%H:%M",
-        range=[get_heure_debut("Matin 1 (2h)"), get_heure_fin("Soir 2 (2h)")]
+        range=[datetime.combine(date.today(), time(8, 30)), datetime.combine(date.today(), time(17, 30))]
     )
     fig.update_layout(
         height=600,
         showlegend=True,
         legend_title_text='Enseignants'
     )
+    fig.update_traces(textposition='inside', textfont_size=10)
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -269,6 +276,10 @@ def afficher_budget_annuel(seances):
 def main():
     data = charger_donnees()
 
+    # Affichage du logo
+    logo_url = "https://raw.githubusercontent.com/Jules-CESI-Toulouse/planning-CESI/refs/heads/main/logo.png"
+    st.image(load_logo(logo_url), width=200)
+
     # Sidebar Navigation
     st.sidebar.title("Navigation")
     onglet = st.sidebar.radio("Menu", [
@@ -299,7 +310,7 @@ def main():
         if st.session_state.get("ajout_seance", False):
             if afficher_formulaire_seance(data):
                 st.session_state["ajout_seance"] = False
-                st.experimental_rerun()
+                st.rerun()
 
     # Onglet Séances
     elif onglet == "Séances":
@@ -311,7 +322,7 @@ def main():
             if afficher_formulaire_seance(data, edit_id):
                 if "edit_seance_id" in st.session_state:
                     del st.session_state["edit_seance_id"]
-                st.experimental_rerun()
+                st.rerun()
 
         # Liste des séances avec actions
         st.subheader("Liste des séances")
@@ -330,13 +341,13 @@ def main():
                 with col2:
                     if st.button("✏️", key=f"edit_{row['id']}"):
                         st.session_state["edit_seance_id"] = row['id']
-                        st.experimental_rerun()
+                        st.rerun()
 
                 with col3:
                     if st.button("🗑️", key=f"del_{row['id']}"):
                         if supprimer_element(data, "seance", row['id']):
                             st.success("Séance supprimée avec succès!")
-                            st.experimental_rerun()
+                            st.rerun()
 
                 st.divider()
         else:
@@ -390,13 +401,13 @@ def main():
                             st.success("Enseignant enregistré avec succès!")
                             if "edit_enseignant_id" in st.session_state:
                                 del st.session_state["edit_enseignant_id"]
-                            st.experimental_rerun()
+                            st.rerun()
 
                 with col2:
                     if edit_id and st.form_submit_button("Annuler"):
                         if "edit_enseignant_id" in st.session_state:
                             del st.session_state["edit_enseignant_id"]
-                        st.experimental_rerun()
+                        st.rerun()
 
         # Liste des enseignants avec actions
         st.subheader("Liste des enseignants")
@@ -410,13 +421,13 @@ def main():
                 with col2:
                     if st.button("✏️", key=f"edit_ens_{enseignant['id']}"):
                         st.session_state["edit_enseignant_id"] = enseignant['id']
-                        st.experimental_rerun()
+                        st.rerun()
 
                 with col3:
                     if st.button("🗑️", key=f"del_ens_{enseignant['id']}"):
                         if supprimer_element(data, "enseignant", enseignant['id']):
                             st.success("Enseignant supprimé avec succès!")
-                            st.experimental_rerun()
+                            st.rerun()
 
                 st.divider()
         else:
@@ -470,13 +481,13 @@ def main():
                             st.success("Groupe enregistré avec succès!")
                             if "edit_groupe_id" in st.session_state:
                                 del st.session_state["edit_groupe_id"]
-                            st.experimental_rerun()
+                            st.rerun()
 
                 with col2:
                     if edit_id and st.form_submit_button("Annuler"):
                         if "edit_groupe_id" in st.session_state:
                             del st.session_state["edit_groupe_id"]
-                        st.experimental_rerun()
+                        st.rerun()
 
         # Liste des groupes avec actions
         st.subheader("Liste des groupes")
@@ -492,13 +503,13 @@ def main():
                 with col2:
                     if st.button("✏️", key=f"edit_gr_{groupe['id']}"):
                         st.session_state["edit_groupe_id"] = groupe['id']
-                        st.experimental_rerun()
+                        st.rerun()
 
                 with col3:
                     if st.button("🗑️", key=f"del_gr_{groupe['id']}"):
                         if supprimer_element(data, "groupe", groupe['id']):
                             st.success("Groupe supprimé avec succès!")
-                            st.experimental_rerun()
+                            st.rerun()
 
                 st.divider()
         else:
@@ -552,13 +563,13 @@ def main():
                             st.success("Promotion enregistrée avec succès!")
                             if "edit_promo_id" in st.session_state:
                                 del st.session_state["edit_promo_id"]
-                            st.experimental_rerun()
+                            st.rerun()
 
                 with col2:
                     if edit_id and st.form_submit_button("Annuler"):
                         if "edit_promo_id" in st.session_state:
                             del st.session_state["edit_promo_id"]
-                        st.experimental_rerun()
+                        st.rerun()
 
         # Liste des promotions avec actions
         st.subheader("Liste des promotions")
@@ -574,13 +585,13 @@ def main():
                 with col2:
                     if st.button("✏️", key=f"edit_pr_{promo['id']}"):
                         st.session_state["edit_promo_id"] = promo['id']
-                        st.experimental_rerun()
+                        st.rerun()
 
                 with col3:
                     if st.button("🗑️", key=f"del_pr_{promo['id']}"):
                         if supprimer_element(data, "promotion", promo['id']):
                             st.success("Promotion supprimée avec succès!")
-                            st.experimental_rerun()
+                            st.rerun()
 
                 st.divider()
         else:
@@ -632,13 +643,13 @@ def main():
                             st.success("Session enregistrée avec succès!")
                             if "edit_session_id" in st.session_state:
                                 del st.session_state["edit_session_id"]
-                            st.experimental_rerun()
+                            st.rerun()
 
                 with col2:
                     if edit_id and st.form_submit_button("Annuler"):
                         if "edit_session_id" in st.session_state:
                             del st.session_state["edit_session_id"]
-                        st.experimental_rerun()
+                        st.rerun()
 
         # Liste des sessions avec actions
         st.subheader("Liste des sessions")
@@ -652,13 +663,13 @@ def main():
                 with col2:
                     if st.button("✏️", key=f"edit_ses_{session['id']}"):
                         st.session_state["edit_session_id"] = session['id']
-                        st.experimental_rerun()
+                        st.rerun()
 
                 with col3:
                     if st.button("🗑️", key=f"del_ses_{session['id']}"):
                         if supprimer_element(data, "session", session['id']):
                             st.success("Session supprimée avec succès!")
-                            st.experimental_rerun()
+                            st.rerun()
 
                 st.divider()
         else:
@@ -758,7 +769,7 @@ def main():
                     with open('data/sauvegardes.json', 'w', encoding='utf-8') as f:
                         f.write(contenu)
                     st.success("Sauvegarde restaurée avec succès!")
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Erreur lors de la restauration: {str(e)}")
 
