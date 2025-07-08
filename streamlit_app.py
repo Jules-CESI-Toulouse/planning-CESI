@@ -4,7 +4,6 @@ import pandas as pd
 import json
 import os
 import plotly.express as px
-from streamlit_modal import Modal
 
 # Configuration de la page
 st.set_page_config(
@@ -34,6 +33,11 @@ def sauvegarder_donnees(data):
     with open('data/sauvegardes.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
+def get_jour_semaine(date_obj):
+    """Retourne le jour de la semaine en français sans utiliser locale"""
+    jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+    return jours[date_obj.weekday()]
+
 def afficher_calendrier_semaine(seances, date_debut):
     """Affiche un calendrier semaine interactif"""
     date_fin = date_debut + timedelta(days=6)
@@ -54,7 +58,7 @@ def afficher_calendrier_semaine(seances, date_debut):
         return
     
     # Préparation des données pour le calendrier
-    df['Jour'] = df['Date'].dt.day_name(locale='fr_FR')
+    df['Jour'] = df['Date'].apply(lambda x: get_jour_semaine(x.date()))
     df['Début'] = df['creneau'].apply(get_heure_debut)
     df['Fin'] = df['creneau'].apply(get_heure_fin)
     
@@ -223,6 +227,44 @@ def supprimer_element(data, element_type, element_id):
     
     sauvegarder_donnees(data)
     return True
+
+def afficher_budget_annuel(seances):
+    """Affiche le budget par année civile"""
+    if not seances:
+        st.warning("Aucune séance planifiée pour analyser le budget.")
+        return
+    
+    df = pd.DataFrame(seances)
+    df['Date'] = pd.to_datetime(df['date'])
+    df['Année'] = df['Date'].dt.year
+    
+    # Budget par année
+    st.subheader("Budget par année civile")
+    budget_annuel = df.groupby('Année')['cout'].sum().reset_index()
+    
+    if not budget_annuel.empty:
+        fig = px.bar(
+            budget_annuel,
+            x='Année',
+            y='cout',
+            title='Budget par année',
+            labels={'Année': 'Année', 'cout': 'Coût (€)'},
+            text_auto='.2s'
+        )
+        fig.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Affichage détaillé
+        st.dataframe(
+            budget_annuel,
+            column_config={
+                "Année": st.column_config.NumberColumn("Année", format="%d"),
+                "cout": st.column_config.NumberColumn("Coût total (€)", format="%.2f €")
+            },
+            hide_index=True
+        )
+    else:
+        st.info("Aucune donnée budgétaire disponible par année")
 
 # Interface principale
 def main():
@@ -627,9 +669,10 @@ def main():
     elif onglet == "Budget":
         st.title("Analyse budgétaire")
         
-        if not data["seances"]:
-            st.info("Aucune séance planifiée pour analyser le budget.")
-        else:
+        # Budget par année civile
+        afficher_budget_annuel(data["seances"])
+        
+        if data["seances"]:
             df = pd.DataFrame(data["seances"])
             
             # Budget par enseignant
